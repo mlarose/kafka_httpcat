@@ -322,6 +322,13 @@ func main() {
 		go func() {
 			discardCounter := 0
 			for msg := range consumer.Messages() {
+				if msg.Offset%batchSize == 0 {
+					consumer.MarkOffset(msg, "")
+					c := metricsRegistry.GetOrRegister("consumer.committed", tags, metrics.NewGauge())
+					c.(metrics.Gauge).Update(msg.Offset)
+					log.Printf("Committed offset partition:%d offset:%d\n", msg.Partition, msg.Offset)
+				}
+								
 				discardCounter++
 				if discard != 0 && discardCounter%discard != 0 {
 					continue
@@ -332,13 +339,6 @@ func main() {
 				tags := tsdmetrics.Tags{"partition": fmt.Sprintf("%d", msg.Partition)}
 				s := metricsRegistry.GetOrRegister("consumer.sent", tags, metrics.NewGauge())
 				s.(metrics.Gauge).Update(msg.Offset)
-
-				if msg.Offset%batchSize == 0 {
-					consumer.MarkOffset(msg, "")
-					c := metricsRegistry.GetOrRegister("consumer.committed", tags, metrics.NewGauge())
-					c.(metrics.Gauge).Update(msg.Offset)
-					log.Printf("Commited offset partition:%d offset:%d\n", msg.Partition, msg.Offset)
-				}
 			}
 		}()
 
